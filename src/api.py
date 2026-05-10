@@ -1,5 +1,7 @@
 from collections import Counter
 from pathlib import Path
+import sqlite3
+import pandas as pd
 
 import networkx as nx
 from fastapi import FastAPI, HTTPException, Query
@@ -7,20 +9,18 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.db import get_conn, init_db
+from src.config import DB_PATH
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 WEB_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Bluesky Community Tool API", version="0.1.0")
 
-
 @app.on_event("startup")
 def startup() -> None:
     init_db()
 
-
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
-
 
 @app.get("/")
 def root_ui():
@@ -28,7 +28,6 @@ def root_ui():
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="web/index.html not found")
     return FileResponse(str(index_path))
-
 
 @app.get("/wordcloud")
 def wordcloud_data(
@@ -66,7 +65,6 @@ def wordcloud_data(
         "words": [{"text": w, "value": c} for w, c in most_common],
     }
 
-
 @app.get("/graph")
 def graph_data(
     topic_id: str = Query(..., description="Canonical topic id"),
@@ -82,7 +80,6 @@ def graph_data(
         conn.close()
         raise HTTPException(status_code=404, detail=f"Unknown topic_id '{topic_id}'")
 
-    # Top ranked feeds for this topic
     cur.execute(
         """
     SELECT r.feed_id, r.score, COALESCE(pr.display_name, pr.handle, r.feed_id) AS feed_label
@@ -104,7 +101,6 @@ def graph_data(
             flabel = f"{fid[:18]}..."
         label_map[fid] = flabel
 
-    # Build post counts once for relatedness proxy
     counts = {}
     for fid in feed_ids:
         cur.execute(
@@ -129,7 +125,6 @@ def graph_data(
         }
     ]
 
-    # Primary edges topic -> feed (keep)
     edges = []
     for fid in feed_ids:
         nodes.append(
@@ -150,8 +145,6 @@ def graph_data(
             }
         )
 
-    # Secondary feed-feed edges (prune aggressively)
-    # only if both have nontrivial activity and overlap proxy >= threshold
     for i in range(len(feed_ids)):
         for j in range(i + 1, len(feed_ids)):
             f1, f2 = feed_ids[i], feed_ids[j]
@@ -172,11 +165,9 @@ def graph_data(
         "edges": edges,
     }
 
-
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
-
 
 @app.get("/topics")
 def list_topics() -> dict:
@@ -190,7 +181,6 @@ def list_topics() -> dict:
         "count": len(rows),
         "topics": [{"topic_id": r[0], "label": r[1]} for r in rows],
     }
-
 
 @app.get("/recommendations")
 def recommendations(
@@ -257,4 +247,84 @@ def recommendations(
         "topic": {"topic_id": topic_row[0], "label": topic_row[1]},
         "count": len(items),
         "recommendations": items,
+    }
+
+@app.get("/search")
+def search_keyword_stats(query: str):
+    conn = sqlite3.connect(DB_PATH)
+    
+    # Use SQL to quickly grab posts containing the search word
+    sql = "SELECT text, like_count, reply_count FROM post WHERE text LIKE ?"
+    df = pd.read_sql(sql, conn, params=(f'%{query}%',))
+    conn.close()
+
+    if len(df) == 0:
+        return {"count": 0, "avg_likes": 0, "variance": 0, "max_likes": 0}
+
+    # Variance needs at least 2 data points, so we handle that safely
+    variance = round(df['like_count'].var(), 2) if len(df) > 1 else 0.0
+
+    return {
+        "count": len(df),
+        "avg_likes": round(df['like_count'].mean(), 2),
+        "variance": variance,
+        "max_likes": int(df['like_count'].max())
+    }
+@app.get("/velocity")
+def topic_velocity(topic_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    #  Extract the 2-digit hour from the ISO8601 timestamp (e.g., "2026-05-10T14:30:00" -> "14")
+    cur.execute("""
+        SELECT substr(p.created_at, 12, 2) as hr, COUNT(*)
+        FROM post_topic pt
+        JOIN post p ON pt.post_uri = p.post_uri
+        WHERE pt.topic_id = ?
+        GROUP BY hr
+        ORDER BY hr
+    """, (topic_id,))
+    rows = cur.fetchall()
+    conn.close()
+
+    # Create a blank 24-hour dictionary and fill it with our data
+    data_map = {str(i).zfill(2): 0 for i in range(24)}
+    for r in rows:
+        if r[0] in data_map:
+            data_map[r[0]] = r[1]
+
+    return {
+        "labels": [f"{h}:00" for h in data_map.keys()],
+        "data": list(data_map.values())
+    }
+
+
+@app.get("/power-users")
+def power_users(topic_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    # Count how many posts every individual user made in this topic
+    cur.execute("""
+        SELECT p.author_did, COUNT(*) as c
+        FROM post_topic pt
+        JOIN post p ON pt.post_uri = p.post_uri
+        WHERE pt.topic_id = ?
+        GROUP BY p.author_did
+        ORDER BY c DESC
+    """, (topic_id,))
+    rows = cur.fetchall()
+    conn.close()
+
+    if not rows:
+        return {"labels": [], "data": []}
+
+    total_posts = sum(r[1] for r in rows)
+    # Grab the top 10% most active users
+    top_10_percent_count = max(1, int(len(rows) * 0.10))
+    
+    top_authors_posts = sum(r[1] for r in rows[:top_10_percent_count])
+    rest_posts = total_posts - top_authors_posts
+
+    return {
+        "labels": ["Top 10% Power Users", "The 90% (Everyone Else)"],
+        "data": [top_authors_posts, rest_posts]
     }

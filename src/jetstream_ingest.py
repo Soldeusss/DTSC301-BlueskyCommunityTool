@@ -1,8 +1,7 @@
 import asyncio
 import json
-from typing import Optional
-
 import websockets
+from typing import Optional
 from rich import print
 from websockets.exceptions import ConnectionClosed
 

@@ -1,311 +1,409 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Bluesky Community Tool</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                margin: 20px;
-                background: #0f172a;
-                color: #e2e8f0;
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bluesky Community Tool</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Inter', 'sans-serif'] },
+            colors: {
+              bsky: '#0085ff',
+              surface: '#1e293b',
+              background: '#0f172a'
             }
-            h1,
-            h2 {
-                margin: 8px 0;
-            }
-            .row {
-                display: flex;
-                gap: 16px;
-                flex-wrap: wrap;
-            }
-            .card {
-                background: #111827;
-                border: 1px solid #334155;
-                border-radius: 10px;
-                padding: 14px;
-                flex: 1;
-                min-width: 320px;
-            }
-            select,
-            button,
-            input {
-                background: #1f2937;
-                color: #e5e7eb;
-                border: 1px solid #475569;
-                border-radius: 6px;
-                padding: 8px;
-            }
-            button {
-                cursor: pointer;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 10px;
-            }
-            th,
-            td {
-                border-bottom: 1px solid #334155;
-                padding: 8px;
-                text-align: left;
-                font-size: 13px;
-                vertical-align: top;
-            }
-            #graph {
-                height: 420px;
-                border: 1px solid #334155;
-                border-radius: 8px;
-                background: #0b1220;
-            }
-            .pill {
-                display: inline-block;
-                padding: 2px 8px;
-                border-radius: 999px;
-                background: #1d4ed8;
-                font-size: 12px;
-                margin-right: 6px;
-                margin-bottom: 6px;
-            }
-            .subtle {
-                font-size: 11px;
-                color: #94a3b8;
-                margin-top: 2px;
-            }
-            .mono {
-                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>Bluesky Community Tool</h1>
-        <p>Topic recommendations, keyword cloud, and relation graph.</p>
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-slate-200 font-sans p-6 md:p-10 max-w-7xl mx-auto">
+    
+    <h1 class="text-3xl font-bold text-white mb-2">Bluesky Community Tool</h1>
+    <p class="text-slate-400 mb-8">Topic recommendations, keyword cloud, and relation graph.</p>
 
-        <div class="card">
-            <label for="topicSelect">Topic:</label>
-            <select id="topicSelect"></select>
-            <label for="topN">Top N:</label>
-            <input id="topN" type="number" min="5" max="50" value="10" />
-            <button id="loadBtn">Load</button>
-        </div>
+    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6 flex flex-wrap items-center gap-4">
+        <label for="searchInput" class="font-medium text-slate-300">Search Topic/Keyword:</label>
+        <input id="searchInput" type="text" placeholder="e.g., python, elections, AI..." class="bg-slate-800 border border-slate-600 text-slate-200 rounded px-3 py-2 outline-none focus:border-bsky flex-1" />
+        <button id="searchBtn" class="bg-bsky hover:bg-blue-600 text-white px-5 py-2 rounded transition-colors font-medium shadow-md">Analyze</button>
+    </div>
 
-        <div class="row">
-            <div class="card">
-                <h2>Top Recommendations</h2>
-                <table id="recTable">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Feed</th>
-                            <th>Score</th>
-                            <th>Posts</th>
-                            <th>Likes</th>
-                            <th>Engagement</th>
-                            <th>Why</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+    <div id="statsCard" class="hidden bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6 transition-all">
+        <h2 class="text-xl font-semibold mb-4 text-white" id="statsTitle">Search Results</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div class="text-slate-400 text-sm">Total Posts</div>
+                <div class="text-2xl font-bold text-white" id="statCount">0</div>
+            </div>
+            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div class="text-slate-400 text-sm">Avg Likes</div>
+                <div class="text-2xl font-bold text-white" id="statAvg">0.0</div>
+            </div>
+            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div class="text-slate-400 text-sm">Variance</div>
+                <div class="text-2xl font-bold text-white" id="statVar">0.0</div>
+            </div>
+            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div class="text-slate-400 text-sm">Max Likes</div>
+                <div class="text-2xl font-bold text-bsky" id="statMax">0</div>
             </div>
         </div>
+    </div>
+    
+    <hr class="border-slate-700 my-8">
 
-        <div class="row">
-            <div class="card">
-                <h2>Keyword "Word Cloud" (Top Terms)</h2>
-                <canvas id="wordChart" height="140"></canvas>
-                <div id="wordPills" style="margin-top: 10px"></div>
-            </div>
+    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6 flex flex-wrap items-center gap-4">
+        <label for="topicSelect" class="font-medium text-slate-300">Topic:</label>
+        <select id="topicSelect" class="bg-slate-800 border border-slate-600 text-slate-200 rounded px-3 py-2 outline-none focus:border-bsky"></select>
+        
+        <label for="topN" class="font-medium text-slate-300">Top N:</label>
+        <input id="topN" type="number" min="5" max="50" value="10" class="bg-slate-800 border border-slate-600 text-slate-200 rounded px-3 py-2 outline-none focus:border-bsky w-24" />
+        
+        <button id="loadBtn" class="bg-bsky hover:bg-blue-600 text-white px-5 py-2 rounded transition-colors font-medium shadow-md">Load</button>
+    </div>
 
-            <div class="card">
-                <h2>Feed Relation Graph</h2>
-                <div id="graph"></div>
-            </div>
+    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4 text-white">Top Recommendations</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
+                    <tr>
+                        <th class="px-4 py-3 rounded-tl-lg">Rank</th>
+                        <th class="px-4 py-3">Feed / Community</th>
+                        <th class="px-4 py-3">Score</th>
+                        <th class="px-4 py-3">Posts</th>
+                        <th class="px-4 py-3">Likes</th>
+                        <th class="px-4 py-3">Engagement</th>
+                        <th class="px-4 py-3 rounded-tr-lg">Why</th>
+                    </tr>
+                </thead>
+                <tbody id="recTableBody" class="divide-y divide-slate-700/50">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
+        <h2 class="text-xl font-semibold mb-1 text-white">Network Velocity (24h)</h2>
+        <p class="text-slate-400 text-xs mb-4">When are people posting about this topic?</p>
+        <canvas id="velocityChart" height="180"></canvas>
+    </div>
+
+    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
+        <h2 class="text-xl font-semibold mb-1 text-white">Power User Concentration</h2>
+        <p class="text-slate-400 text-xs mb-4">Are a few accounts dominating the conversation?</p>
+        <div class="flex-1 flex items-center justify-center">
+            <canvas id="powerChart" style="max-height: 220px;"></canvas>
+        </div>
+    </div>
+</div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
+            <h2 class="text-xl font-semibold mb-4 text-white">Keyword "Word Cloud" (Top Terms)</h2>
+            <canvas id="wordChart" height="140"></canvas>
+            <div id="wordPills" class="mt-6 flex flex-wrap"></div>
         </div>
 
-        <script>
-            const topicSelect = document.getElementById("topicSelect");
-            const loadBtn = document.getElementById("loadBtn");
-            const topNInput = document.getElementById("topN");
-            const recBody = document.querySelector("#recTable tbody");
-            const wordPills = document.getElementById("wordPills");
-            let wordChart = null;
-            let graphNetwork = null;
+        <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
+            <h2 class="text-xl font-semibold mb-4 text-white">Feed Relation Graph</h2>
+            <div id="graph" class="h-[420px] w-full rounded-lg border border-slate-700 bg-slate-900/50 overflow-hidden"></div>
+        </div>
+    </div>
 
-            function shortDid(did) {
-                if (!did) return "";
-                return did.startsWith("did:plc:")
-                    ? did.slice(0, 18) + "..."
-                    : did;
-            }
+    <script>
+        const topicSelect = document.getElementById("topicSelect");
+        const loadBtn = document.getElementById("loadBtn");
+        const topNInput = document.getElementById("topN");
+        const recBody = document.getElementById("recTableBody");
+        const wordPills = document.getElementById("wordPills");
+        let wordChart = null;
+        let graphNetwork = null;
+        let velocityChart = null; // NEW
+        let powerChart = null; // NEW
 
-            async function fetchJSON(url) {
-                const res = await fetch(url);
-                if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-                return await res.json();
-            }
+        function shortDid(did) {
+            if (!did) return "";
+            return did.startsWith("did:plc:") ? did.slice(0, 18) + "..." : did;
+        }
 
-            async function loadTopics() {
-                const data = await fetchJSON("/topics");
-                topicSelect.innerHTML = "";
-                data.topics.forEach((t) => {
-                    const opt = document.createElement("option");
-                    opt.value = t.topic_id;
-                    opt.textContent = `${t.label} (${t.topic_id})`;
-                    topicSelect.appendChild(opt);
-                });
-            }
+        async function fetchJSON(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+            return await res.json();
+        }
 
-            function renderRecommendations(items) {
-                recBody.innerHTML = "";
-                items.forEach((r, idx) => {
-                    const label = r.feed_label || shortDid(r.feed_id);
-                    const secondary = r.handle
-                        ? `@${r.handle}`
-                        : shortDid(r.feed_id);
+        async function loadTopics() {
+            const data = await fetchJSON("/topics");
+            topicSelect.innerHTML = "";
+            data.topics.forEach((t) => {
+                const opt = document.createElement("option");
+                opt.value = t.topic_id;
+                opt.textContent = `${t.label} (${t.topic_id})`;
+                topicSelect.appendChild(opt);
+            });
+        }
 
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `
-          <td>${idx + 1}</td>
-          <td title="${r.feed_id}">
-            <div>${label}</div>
-            <div class="subtle mono">${secondary}</div>
-          </td>
-          <td>${Number(r.score).toFixed(4)}</td>
-          <td>${r.post_count}</td>
-          <td>${r.like_count}</td>
-          <td>${r.engagement_count}</td>
-          <td>${r.explanation}</td>
-        `;
-                    recBody.appendChild(tr);
-                });
-            }
+        function renderRecommendations(items) {
+            recBody.innerHTML = "";
+            items.forEach((r, idx) => {
+                const label = r.feed_label || shortDid(r.feed_id);
+                const secondary = r.handle ? `@${r.handle}` : shortDid(r.feed_id);
+                const bskyProfileUrl = `https://bsky.app/profile/${r.feed_id}`;
 
-            function renderWordCloud(words) {
-                const labels = words.map((w) => w.text);
-                const values = words.map((w) => w.value);
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                  <td class="px-4 py-3">${idx + 1}</td>
+                  <td class="px-4 py-3" title="${r.feed_id}">
+                    <div><a href="${bskyProfileUrl}" target="_blank" class="text-bsky font-semibold hover:underline">${label}</a></div>
+                    <div class="text-xs text-slate-400 font-mono mt-1">${secondary}</div>
+                  </td>
+                  <td class="px-4 py-3 font-mono text-slate-300">${Number(r.score).toFixed(4)}</td>
+                  <td class="px-4 py-3">${r.post_count}</td>
+                  <td class="px-4 py-3">${r.like_count}</td>
+                  <td class="px-4 py-3">${r.engagement_count}</td>
+                  <td class="px-4 py-3 text-xs text-slate-400 break-words max-w-xs">${r.explanation}</td>
+                `;
+                recBody.appendChild(tr);
+            });
+        }
 
-                if (wordChart) wordChart.destroy();
-                const ctx = document
-                    .getElementById("wordChart")
-                    .getContext("2d");
-                wordChart = new Chart(ctx, {
-                    type: "bar",
-                    data: {
-                        labels,
-                        datasets: [
-                            { label: "Keyword Frequency", data: values },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { ticks: { color: "#cbd5e1" } },
-                            y: { ticks: { color: "#cbd5e1" } },
-                        },
-                    },
-                });
-
-                wordPills.innerHTML = "";
-                words.slice(0, 30).forEach((w) => {
-                    const span = document.createElement("span");
-                    span.className = "pill";
-                    span.textContent = `${w.text} (${w.value})`;
-                    wordPills.appendChild(span);
-                });
-            }
-
-            function renderGraph(nodes, edges) {
-              const container = document.getElementById("graph");
+        function renderEngagementChart(statsData) {
+            if (engagementChart) engagementChart.destroy(); 
             
-              const dsNodes = new vis.DataSet(nodes.map(n => {
-                const isTopic = n.kind === "topic";
-                return {
-                  id: n.id,
-                  label: isTopic ? `Topic: ${n.label}` : n.label,
-                  title: isTopic ? n.label : (n.raw_id || n.id),
-                  shape: isTopic ? "star" : "dot",
-                  size: isTopic ? 34 : 14 + Math.min(16, (n.score || 0) * 30),
-                  color: isTopic
-                    ? { background: "#f59e0b", border: "#fbbf24" }
-                    : { background: "#2563eb", border: "#60a5fa" },
-                  font: { color: "#e2e8f0", size: isTopic ? 16 : 12, face: "Inter, Arial" },
-                  mass: isTopic ? 3 : 1.2
-                };
-              }));
-            
-              const dsEdges = new vis.DataSet(edges.map(e => {
-                const isPrimary = e.relation === "topic_link";
-                return {
-                  from: e.source,
-                  to: e.target,
-                  width: isPrimary ? 1 + Math.min(8, (e.weight || 0) * 8) : 1 + Math.min(3, (e.weight || 0)),
-                  color: isPrimary ? { color: "#38bdf8", opacity: 0.75 } : { color: "#64748b", opacity: 0.30 },
-                  dashes: !isPrimary,
-                  smooth: { type: "dynamic" },
-                  label: "", // remove noisy labels
-                };
-              }));
-            
-              const data = { nodes: dsNodes, edges: dsEdges };
-              const options = {
-                autoResize: true,
-                interaction: { hover: true, tooltipDelay: 120 },
-                physics: {
-                  stabilization: { iterations: 300 },
-                  barnesHut: {
-                    gravitationalConstant: -5500,
-                    springLength: 190,
-                    springConstant: 0.025,
-                    damping: 0.22,
-                    avoidOverlap: 0.9
-                  }
+            const ctx = document.getElementById('engagementChart').getContext('2d');
+            engagementChart = new Chart(ctx, {
+                type: 'line', 
+                data: {
+                    labels: ['0 Likes', '1-5 Likes', '6-20 Likes', 'Viral (21+)'],
+                    datasets: [{
+                        label: 'Number of Posts',
+                        data: [24000, 4500, 1200, 300], 
+                        borderColor: '#0085ff', 
+                        backgroundColor: 'rgba(0, 133, 255, 0.2)', 
+                        fill: true,
+                        tension: 0.4 
+                    }]
                 },
-                layout: { improvedLayout: true },
-                nodes: { borderWidth: 1.5 },
-                edges: { selectionWidth: 2 }
-              };
-            
-              if (graphNetwork) graphNetwork.destroy();
-              graphNetwork = new vis.Network(container, data, options);
-            }
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
+                        y: { ticks: { color: "#94a3b8" }, grid: { color: '#334155' } },
+                    }
+                }
+            });
+        }
 
-            async function loadAll() {
-                const topicId = topicSelect.value;
-                const topN = Number(topNInput.value || 10);
+        function renderWordCloud(words) {
+            const labels = words.map((w) => w.text);
+            const values = words.map((w) => w.value);
 
-                const [rec, wc, graph] = await Promise.all([
-                    fetchJSON(
-                        `/recommendations?topic_id=${encodeURIComponent(topicId)}&top=${topN}`,
-                    ),
-                    fetchJSON(
-                        `/wordcloud?topic_id=${encodeURIComponent(topicId)}&top_words=30`,
-                    ),
-                    fetchJSON(
-                        `/graph?topic_id=${encodeURIComponent(topicId)}&top_feeds=${topN}`,
-                    ),
-                ]);
-
-                renderRecommendations(rec.recommendations || []);
-                renderWordCloud(wc.words || []);
-                renderGraph(graph.nodes || [], graph.edges || []);
-            }
-
-            loadBtn.addEventListener("click", () => {
-                loadAll().catch((err) => alert(err.message));
+            if (wordChart) wordChart.destroy();
+            const ctx = document.getElementById("wordChart").getContext("2d");
+            wordChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels,
+                    datasets: [{ 
+                        label: "Keyword Frequency", 
+                        data: values,
+                        backgroundColor: '#0085ff',
+                        borderRadius: 4
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
+                        y: { ticks: { color: "#94a3b8" }, grid: { color: '#334155' } },
+                    },
+                },
             });
 
-            (async function init() {
-                try {
-                    await loadTopics();
-                    await loadAll();
-                } catch (e) {
-                    alert(e.message);
+            wordPills.innerHTML = "";
+            words.slice(0, 30).forEach((w) => {
+                const span = document.createElement("span");
+                span.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-bsky/10 text-bsky border border-bsky/20 mr-2 mb-2 transition-colors hover:bg-bsky/20 cursor-default";
+                span.textContent = `${w.text} (${w.value})`;
+                wordPills.appendChild(span);
+            });
+        }
+
+        function renderVelocityChart(data) {
+            if (velocityChart) velocityChart.destroy(); 
+            const ctx = document.getElementById('velocityChart').getContext('2d');
+            velocityChart = new Chart(ctx, {
+                type: 'line', 
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Posts per Hour',
+                        data: data.data,
+                        borderColor: '#38bdf8', // Light blue
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)', 
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4 // Smooth curves
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
+                        y: { ticks: { color: "#94a3b8" }, grid: { color: '#334155' } },
+                    }
                 }
-            })();
-        </script>
-    </body>
+            });
+        }
+
+        function renderPowerChart(data) {
+            if (powerChart) powerChart.destroy();
+            const ctx = document.getElementById('powerChart').getContext('2d');
+            powerChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: ['#0085ff', '#334155'], // Brand blue vs dark gray
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    cutout: '75%', // Makes the doughnut ring thin and modern
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { color: '#cbd5e1' } } 
+                    }
+                }
+            });
+        }
+
+
+
+        function renderGraph(nodes, edges) {
+          const container = document.getElementById("graph");
+        
+          const dsNodes = new vis.DataSet(nodes.map(n => {
+            const isTopic = n.kind === "topic";
+            return {
+              id: n.id,
+              label: isTopic ? `Topic: ${n.label}` : n.label,
+              title: isTopic ? n.label : (n.raw_id || n.id),
+              shape: isTopic ? "star" : "dot",
+              size: isTopic ? 34 : 14 + Math.min(16, (n.score || 0) * 30),
+              color: isTopic
+                ? { background: "#f59e0b", border: "#fbbf24" }
+                : { background: "#0085ff", border: "#38bdf8" },
+              font: { color: "#e2e8f0", size: isTopic ? 16 : 12, face: "Inter, sans-serif" },
+              mass: isTopic ? 3 : 1.2
+            };
+          }));
+        
+          const dsEdges = new vis.DataSet(edges.map(e => {
+            const isPrimary = e.relation === "topic_link";
+            return {
+              from: e.source,
+              to: e.target,
+              width: isPrimary ? 1 + Math.min(8, (e.weight || 0) * 8) : 1 + Math.min(3, (e.weight || 0)),
+              color: isPrimary ? { color: "#38bdf8", opacity: 0.75 } : { color: "#475569", opacity: 0.40 },
+              dashes: !isPrimary,
+              smooth: { type: "dynamic" },
+              label: "",
+            };
+          }));
+        
+          const data = { nodes: dsNodes, edges: dsEdges };
+          const options = {
+            autoResize: true,
+            interaction: { hover: true, tooltipDelay: 120 },
+            physics: {
+              stabilization: { iterations: 300 },
+              barnesHut: {
+                gravitationalConstant: -5500,
+                springLength: 190,
+                springConstant: 0.025,
+                damping: 0.22,
+                avoidOverlap: 0.9
+              }
+            },
+            layout: { improvedLayout: true },
+            nodes: { borderWidth: 1.5 },
+            edges: { selectionWidth: 2 }
+          };
+        
+          if (graphNetwork) graphNetwork.destroy();
+          graphNetwork = new vis.Network(container, data, options);
+        }
+
+
+
+        loadBtn.addEventListener("click", () => {
+            loadAll().catch((err) => alert(err.message));
+        });
+
+        document.getElementById("searchBtn").addEventListener("click", async () => {
+            const query = document.getElementById("searchInput").value;
+            if (!query) return;
+
+            try {
+                const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
+                const stats = await response.json();
+
+                document.getElementById("statsCard").classList.remove("hidden");
+                document.getElementById("statsTitle").innerText = `Results for "${query}"`;
+                document.getElementById("statCount").innerText = stats.count;
+                document.getElementById("statAvg").innerText = stats.avg_likes;
+                document.getElementById("statVar").innerText = stats.variance;
+                document.getElementById("statMax").innerText = stats.max_likes;
+            } catch (err) {
+                alert("Error fetching search stats: " + err.message);
+            }
+        });
+
+        async function loadAll() {
+            const topicId = topicSelect.value;
+            const topN = Number(topNInput.value || 10);
+            const [rec, wc, graph, vel, pwr] = await Promise.all([
+                fetchJSON(`/recommendations?topic_id=${encodeURIComponent(topicId)}&top=${topN}`),
+                fetchJSON(`/wordcloud?topic_id=${encodeURIComponent(topicId)}&top_words=30`),
+                fetchJSON(`/graph?topic_id=${encodeURIComponent(topicId)}&top_feeds=${topN}`),
+                fetchJSON(`/velocity?topic_id=${encodeURIComponent(topicId)}`),
+                fetchJSON(`/power-users?topic_id=${encodeURIComponent(topicId)}`),
+            ]);
+
+            renderRecommendations(rec.recommendations || []);
+            renderWordCloud(wc.words || []);
+            renderGraph(graph.nodes || [], graph.edges || []);
+            
+        
+            renderVelocityChart(vel);
+            renderPowerChart(pwr);
+        }
+
+        (async function init() {
+            try {
+                await loadTopics();
+                await loadAll();
+            } catch (e) {
+                alert(e.message);
+            }
+        })();
+    </script>
+</body>
 </html>

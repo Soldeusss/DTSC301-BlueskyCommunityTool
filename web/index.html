@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bluesky Community Tool</title>
+    <title>Bluesky Analytics</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
@@ -17,121 +17,207 @@
           extend: {
             fontFamily: { sans: ['Inter', 'sans-serif'] },
             colors: {
-              bsky: '#0085ff',
-              surface: '#1e293b',
-              background: '#0f172a'
+              bgMain: '#0a0d14',     // The deep near-black background
+              bgCard: '#131824',     // The slightly lighter card background
+              brdDark: '#222b3b',    // Subtle borders
+              txtMuted: '#8b97b0',   // Grayed out text
+              brandBlue: '#007aff',  // Bright neon blue
+              brandGreen: '#00d26a', // Neon green
+              brandPurple: '#9d4edd',// Neon purple
+              brandRed: '#f72585'    // Neon pink/red
             }
           }
         }
       }
     </script>
+    <style>
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0d14; }
+        ::-webkit-scrollbar-thumb { background: #222b3b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a475e; }
+    </style>
 </head>
-<body class="bg-background text-slate-200 font-sans p-6 md:p-10 max-w-7xl mx-auto">
-    
-    <h1 class="text-3xl font-bold text-white mb-2">Bluesky Community Tool</h1>
-    <p class="text-slate-400 mb-8">Topic recommendations, keyword cloud, and relation graph.</p>
+<body class="bg-bgMain text-gray-100 font-sans h-screen flex overflow-hidden">
 
-    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6 flex flex-wrap items-center gap-4">
-        <label for="searchInput" class="font-medium text-slate-300">Search Topic/Keyword:</label>
-        <input id="searchInput" type="text" placeholder="e.g., python, elections, AI..." class="bg-slate-800 border border-slate-600 text-slate-200 rounded px-3 py-2 outline-none focus:border-bsky flex-1" />
-        <button id="searchBtn" class="bg-bsky hover:bg-blue-600 text-white px-5 py-2 rounded transition-colors font-medium shadow-md">Analyze</button>
-    </div>
+    <aside class="w-16 border-r border-brdDark flex flex-col items-center py-6 gap-8 bg-bgMain z-10 hidden md:flex">
+        <div class="w-8 h-8 rounded-full bg-brandBlue flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(0,122,255,0.5)]">B</div>
+        <div class="w-6 h-6 rounded bg-brdDark/50 cursor-pointer hover:bg-brdDark transition"></div>
+        <div class="w-6 h-6 rounded bg-brdDark/50 cursor-pointer hover:bg-brdDark transition"></div>
+        <div class="w-6 h-6 rounded bg-brdDark/50 cursor-pointer hover:bg-brdDark transition"></div>
+    </aside>
 
-    <div id="statsCard" class="hidden bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6 transition-all">
-        <h2 class="text-xl font-semibold mb-4 text-white" id="statsTitle">Search Results</h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div class="text-slate-400 text-sm">Total Posts</div>
-                <div class="text-2xl font-bold text-white" id="statCount">0</div>
-            </div>
-            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div class="text-slate-400 text-sm">Avg Likes</div>
-                <div class="text-2xl font-bold text-white" id="statAvg">0.0</div>
-            </div>
-            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div class="text-slate-400 text-sm">Variance</div>
-                <div class="text-2xl font-bold text-white" id="statVar">0.0</div>
-            </div>
-            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div class="text-slate-400 text-sm">Max Likes</div>
-                <div class="text-2xl font-bold text-bsky" id="statMax">0</div>
-            </div>
-        </div>
-    </div>
-    
-    <hr class="border-slate-700 my-8">
-
-    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6 flex flex-wrap items-center gap-4">
-        <label for="topicSelect" class="font-medium text-slate-300">Topic:</label>
-        <select id="topicSelect" class="bg-slate-800 border border-slate-600 text-slate-200 rounded px-3 py-2 outline-none focus:border-bsky"></select>
+    <main class="flex-1 overflow-y-auto p-6 md:p-8">
         
-        <label for="topN" class="font-medium text-slate-300">Top N:</label>
-        <input id="topN" type="number" min="5" max="50" value="10" class="bg-slate-800 border border-slate-600 text-slate-200 rounded px-3 py-2 outline-none focus:border-bsky w-24" />
-        
-        <button id="loadBtn" class="bg-bsky hover:bg-blue-600 text-white px-5 py-2 rounded transition-colors font-medium shadow-md">Load</button>
-    </div>
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <div class="text-xs text-txtMuted font-medium tracking-wide flex items-center gap-2 mb-1">
+                    <span>Home</span> <span class="text-brdDark">•</span> 
+                    <span>Dashboard</span> <span class="text-brdDark">•</span> 
+                    <span class="text-gray-200">Bluesky Analytics</span>
+                </div>
+                <h1 class="text-2xl font-semibold tracking-tight text-white">Community Intelligence</h1>
+            </div>
+            
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <input id="searchInput" type="text" placeholder="Search a keyword..." class="bg-bgCard border border-brdDark text-sm text-gray-200 rounded-lg px-4 py-2 outline-none focus:border-brandBlue transition w-full md:w-64 placeholder-txtMuted" />
+                <button id="searchBtn" class="bg-brdDark hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium">Analyze</button>
+            </div>
+        </header>
 
-    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-semibold mb-4 text-white">Top Recommendations</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 border-b border-slate-700">
-                    <tr>
-                        <th class="px-4 py-3 rounded-tl-lg">Rank</th>
-                        <th class="px-4 py-3">Feed / Community</th>
-                        <th class="px-4 py-3">Score</th>
-                        <th class="px-4 py-3">Posts</th>
-                        <th class="px-4 py-3">Likes</th>
-                        <th class="px-4 py-3">Engagement</th>
-                        <th class="px-4 py-3 rounded-tr-lg">Why</th>
-                    </tr>
-                </thead>
-                <tbody id="recTableBody" class="divide-y divide-slate-700/50">
-                </tbody>
-            </table>
+        <div id="statsCard" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-5 relative overflow-hidden group">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-brandBlue/10 flex items-center justify-center border border-brandBlue/20">
+                        <span class="text-brandBlue text-xs font-bold">📝</span>
+                    </div>
+                    <h3 class="text-txtMuted text-sm font-medium">Total Posts Analyzed</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="statCount">0</div>
+                <div class="text-xs text-brandGreen font-medium flex items-center gap-1">↑ Search Query Result</div>
+            </div>
+
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-5 relative overflow-hidden">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-brandGreen/10 flex items-center justify-center border border-brandGreen/20">
+                        <span class="text-brandGreen text-xs font-bold">❤️</span>
+                    </div>
+                    <h3 class="text-txtMuted text-sm font-medium">Average Likes</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="statAvg">0.0</div>
+                <div class="text-xs text-txtMuted font-medium">Per post average</div>
+            </div>
+
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-5 relative overflow-hidden">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-brandPurple/10 flex items-center justify-center border border-brandPurple/20">
+                        <span class="text-brandPurple text-xs font-bold">📈</span>
+                    </div>
+                    <h3 class="text-txtMuted text-sm font-medium">Engagement Variance</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="statVar">0.0</div>
+                <div class="text-xs text-brandPurple font-medium">Volatility rating</div>
+            </div>
+
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-5 relative overflow-hidden">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-brandRed/10 flex items-center justify-center border border-brandRed/20">
+                        <span class="text-brandRed text-xs font-bold">🔥</span>
+                    </div>
+                    <h3 class="text-txtMuted text-sm font-medium">Maximum Likes</h3>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="statMax">0</div>
+                <div class="text-xs text-txtMuted font-medium">Top performing post</div>
+            </div>
         </div>
-    </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
-        <h2 class="text-xl font-semibold mb-1 text-white">Network Velocity (24h)</h2>
-        <p class="text-slate-400 text-xs mb-4">When are people posting about this topic?</p>
-        <canvas id="velocityChart" height="180"></canvas>
-    </div>
-
-    <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
-        <h2 class="text-xl font-semibold mb-1 text-white">Power User Concentration</h2>
-        <p class="text-slate-400 text-xs mb-4">Are a few accounts dominating the conversation?</p>
-        <div class="flex-1 flex items-center justify-center">
-            <canvas id="powerChart" style="max-height: 220px;"></canvas>
-        </div>
-    </div>
-</div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
-            <h2 class="text-xl font-semibold mb-4 text-white">Keyword "Word Cloud" (Top Terms)</h2>
-            <canvas id="wordChart" height="140"></canvas>
-            <div id="wordPills" class="mt-6 flex flex-wrap"></div>
+        <div class="flex flex-wrap items-center gap-4 mb-6">
+            <select id="topicSelect" class="bg-bgCard border border-brdDark text-sm text-gray-200 rounded-lg px-4 py-2.5 outline-none focus:border-brandBlue cursor-pointer"></select>
+            <div class="flex items-center bg-bgCard border border-brdDark rounded-lg overflow-hidden">
+                <span class="px-3 text-txtMuted text-sm border-r border-brdDark">Top N:</span>
+                <input id="topN" type="number" min="5" max="50" value="10" class="bg-transparent text-sm text-gray-200 px-3 py-2.5 outline-none w-20" />
+            </div>
+            <button id="loadBtn" class="bg-brandBlue hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg transition-colors text-sm font-medium shadow-[0_0_15px_rgba(0,122,255,0.3)]">Load Topic Dashboard</button>
         </div>
 
-        <div class="bg-surface border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col">
-            <h2 class="text-xl font-semibold mb-4 text-white">Feed Relation Graph</h2>
-            <div id="graph" class="h-[420px] w-full rounded-lg border border-slate-700 bg-slate-900/50 overflow-hidden"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-6 lg:col-span-2 flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Network Velocity</h2>
+                        <p class="text-xs text-txtMuted mt-1">24-hour posting volume</p>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs font-medium">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-brandBlue shadow-[0_0_8px_#007aff]"></span> Volume</span>
+                    </div>
+                </div>
+                <div class="flex-1 min-h-[250px] relative w-full">
+                    <canvas id="velocityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-6 flex flex-col">
+                <div class="mb-2">
+                    <h2 class="text-lg font-semibold text-white">Power Users</h2>
+                    <p class="text-xs text-txtMuted mt-1">Concentration of posts</p>
+                </div>
+                <div class="flex-1 flex flex-col items-center justify-center relative min-h-[250px]">
+                    <canvas id="powerChart"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-4">
+                        <span class="text-2xl font-bold text-white">80/20</span>
+                        <span class="text-xs text-txtMuted">Split</span>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+
+        <div class="bg-bgCard border border-brdDark rounded-2xl p-6 mb-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-semibold text-white">Top Recommendations</h2>
+                <button class="text-xs text-txtMuted hover:text-white border border-brdDark rounded px-3 py-1 flex items-center gap-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    Filter
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead>
+                        <tr>
+                            <th class="text-xs font-semibold text-txtMuted uppercase tracking-wider pb-4 border-b border-brdDark px-4">Rank</th>
+                            <th class="text-xs font-semibold text-txtMuted uppercase tracking-wider pb-4 border-b border-brdDark px-4">Feed / Community</th>
+                            <th class="text-xs font-semibold text-txtMuted uppercase tracking-wider pb-4 border-b border-brdDark px-4">Algorithmic Score</th>
+                            <th class="text-xs font-semibold text-txtMuted uppercase tracking-wider pb-4 border-b border-brdDark px-4 text-right">Posts</th>
+                            <th class="text-xs font-semibold text-txtMuted uppercase tracking-wider pb-4 border-b border-brdDark px-4 text-right">Engagement</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recTableBody" class="divide-y divide-brdDark/50">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-10">
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-6">
+                <h2 class="text-lg font-semibold text-white mb-6">Topic Lexicon</h2>
+                <div class="min-h-[200px] w-full">
+                    <canvas id="wordChart"></canvas>
+                </div>
+                <div id="wordPills" class="mt-6 flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="bg-bgCard border border-brdDark rounded-2xl p-6">
+                <h2 class="text-lg font-semibold text-white mb-6">Community Relation Graph</h2>
+                <div id="graph" class="h-[350px] w-full rounded-xl bg-[#0a0d14] border border-brdDark overflow-hidden"></div>
+            </div>
+        </div>
+    </main>
 
     <script>
+        // DOM Elements
         const topicSelect = document.getElementById("topicSelect");
         const loadBtn = document.getElementById("loadBtn");
         const topNInput = document.getElementById("topN");
         const recBody = document.getElementById("recTableBody");
         const wordPills = document.getElementById("wordPills");
+        
+        // Chart Instances
+        let velocityChart = null;
+        let powerChart = null;
         let wordChart = null;
         let graphNetwork = null;
-        let velocityChart = null; // NEW
-        let powerChart = null; // NEW
 
+        // Global Chart.js Defaults for Dark Theme
+        Chart.defaults.color = '#8b97b0';
+        Chart.defaults.font.family = 'Inter, sans-serif';
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(19, 24, 36, 0.9)';
+        Chart.defaults.plugins.tooltip.titleColor = '#fff';
+        Chart.defaults.plugins.tooltip.bodyColor = '#e2e8f0';
+        Chart.defaults.plugins.tooltip.borderColor = '#222b3b';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+
+        // Utilities
         function shortDid(did) {
             if (!did) return "";
             return did.startsWith("did:plc:") ? did.slice(0, 18) + "..." : did;
@@ -143,6 +229,7 @@
             return await res.json();
         }
 
+        // Feature 1: Load Topics
         async function loadTopics() {
             const data = await fetchJSON("/topics");
             topicSelect.innerHTML = "";
@@ -154,6 +241,7 @@
             });
         }
 
+        // Feature 2: Table Rendering (Styled to match screenshot)
         function renderRecommendations(items) {
             recBody.innerHTML = "";
             items.forEach((r, idx) => {
@@ -161,51 +249,114 @@
                 const secondary = r.handle ? `@${r.handle}` : shortDid(r.feed_id);
                 const bskyProfileUrl = `https://bsky.app/profile/${r.feed_id}`;
 
+                // Create a colored avatar based on index
+                const colors = ['bg-brandBlue', 'bg-brandPurple', 'bg-brandGreen', 'bg-brandRed', 'bg-gray-600'];
+                const avatarColor = colors[idx % colors.length];
+                const initials = label.substring(0, 2).toUpperCase();
+
                 const tr = document.createElement("tr");
+                tr.className = "hover:bg-brdDark/30 transition-colors group";
                 tr.innerHTML = `
-                  <td class="px-4 py-3">${idx + 1}</td>
-                  <td class="px-4 py-3" title="${r.feed_id}">
-                    <div><a href="${bskyProfileUrl}" target="_blank" class="text-bsky font-semibold hover:underline">${label}</a></div>
-                    <div class="text-xs text-slate-400 font-mono mt-1">${secondary}</div>
+                  <td class="px-4 py-4 text-txtMuted text-xs font-mono">#${idx + 1}</td>
+                  <td class="px-4 py-4" title="${r.feed_id}">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">
+                            ${initials}
+                        </div>
+                        <div>
+                            <a href="${bskyProfileUrl}" target="_blank" class="text-gray-200 font-medium hover:text-brandBlue transition-colors">${label}</a>
+                            <div class="text-xs text-txtMuted mt-0.5">${secondary}</div>
+                        </div>
+                    </div>
                   </td>
-                  <td class="px-4 py-3 font-mono text-slate-300">${Number(r.score).toFixed(4)}</td>
-                  <td class="px-4 py-3">${r.post_count}</td>
-                  <td class="px-4 py-3">${r.like_count}</td>
-                  <td class="px-4 py-3">${r.engagement_count}</td>
-                  <td class="px-4 py-3 text-xs text-slate-400 break-words max-w-xs">${r.explanation}</td>
+                  <td class="px-4 py-4">
+                    <span class="px-2.5 py-1 bg-brdDark rounded-md border border-brdDark/50 text-brandBlue font-mono text-xs">
+                        ${Number(r.score).toFixed(4)}
+                    </span>
+                  </td>
+                  <td class="px-4 py-4 text-right text-gray-300">${r.post_count.toLocaleString()}</td>
+                  <td class="px-4 py-4 text-right">
+                    <div class="flex items-center justify-end gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-brandGreen"></span>
+                        <span class="text-gray-300">${r.engagement_count.toLocaleString()}</span>
+                    </div>
+                  </td>
                 `;
                 recBody.appendChild(tr);
             });
         }
 
-        function renderEngagementChart(statsData) {
-            if (engagementChart) engagementChart.destroy(); 
+        // Feature 3: Velocity Chart (Neon Line Chart)
+        function renderVelocityChart(data) {
+            if (velocityChart) velocityChart.destroy(); 
+            const ctx = document.getElementById('velocityChart').getContext('2d');
             
-            const ctx = document.getElementById('engagementChart').getContext('2d');
-            engagementChart = new Chart(ctx, {
+            // Create Gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(0, 122, 255, 0.5)'); // Brand blue transparent
+            gradient.addColorStop(1, 'rgba(0, 122, 255, 0.0)');
+
+            velocityChart = new Chart(ctx, {
                 type: 'line', 
                 data: {
-                    labels: ['0 Likes', '1-5 Likes', '6-20 Likes', 'Viral (21+)'],
+                    labels: data.labels,
                     datasets: [{
-                        label: 'Number of Posts',
-                        data: [24000, 4500, 1200, 300], 
-                        borderColor: '#0085ff', 
-                        backgroundColor: 'rgba(0, 133, 255, 0.2)', 
+                        label: 'Posts per Hour',
+                        data: data.data,
+                        borderColor: '#007aff', // brandBlue
+                        backgroundColor: gradient, 
+                        borderWidth: 2,
+                        pointBackgroundColor: '#0a0d14',
+                        pointBorderColor: '#007aff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                         fill: true,
                         tension: 0.4 
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
-                        y: { ticks: { color: "#94a3b8" }, grid: { color: '#334155' } },
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { grid: { color: '#222b3b', drawBorder: false }, border: { dash: [4, 4] }, ticks: { font: { size: 11 } } },
                     }
                 }
             });
         }
 
+        // Feature 4: Power Chart (Neon Doughnut)
+        function renderPowerChart(data) {
+            if (powerChart) powerChart.destroy();
+            const ctx = document.getElementById('powerChart').getContext('2d');
+            powerChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: ['#f72585', '#222b3b'], // Neon pink vs dark gray border color
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '80%', 
+                    plugins: { 
+                        legend: { 
+                            position: 'bottom', 
+                            labels: { color: '#8b97b0', usePointStyle: true, padding: 20, font: { size: 11 } } 
+                        } 
+                    }
+                }
+            });
+        }
+
+        // Feature 5: Word Cloud Bar Chart
         function renderWordCloud(words) {
             const labels = words.map((w) => w.text);
             const values = words.map((w) => w.value);
@@ -217,85 +368,34 @@
                 data: {
                     labels,
                     datasets: [{ 
-                        label: "Keyword Frequency", 
+                        label: "Frequency", 
                         data: values,
-                        backgroundColor: '#0085ff',
-                        borderRadius: 4
+                        backgroundColor: '#00d26a', // brandGreen
+                        borderRadius: 4,
+                        barPercentage: 0.6
                     }],
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
-                        y: { ticks: { color: "#94a3b8" }, grid: { color: '#334155' } },
+                        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                        y: { grid: { color: '#222b3b', drawBorder: false }, border: { dash: [4, 4] } },
                     },
                 },
             });
 
             wordPills.innerHTML = "";
-            words.slice(0, 30).forEach((w) => {
+            words.slice(0, 15).forEach((w) => {
                 const span = document.createElement("span");
-                span.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-bsky/10 text-bsky border border-bsky/20 mr-2 mb-2 transition-colors hover:bg-bsky/20 cursor-default";
+                span.className = "px-3 py-1 rounded-full text-[11px] font-medium bg-brandGreen/10 text-brandGreen border border-brandGreen/20";
                 span.textContent = `${w.text} (${w.value})`;
                 wordPills.appendChild(span);
             });
         }
 
-        function renderVelocityChart(data) {
-            if (velocityChart) velocityChart.destroy(); 
-            const ctx = document.getElementById('velocityChart').getContext('2d');
-            velocityChart = new Chart(ctx, {
-                type: 'line', 
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Posts per Hour',
-                        data: data.data,
-                        borderColor: '#38bdf8', // Light blue
-                        backgroundColor: 'rgba(56, 189, 248, 0.1)', 
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4 // Smooth curves
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
-                        y: { ticks: { color: "#94a3b8" }, grid: { color: '#334155' } },
-                    }
-                }
-            });
-        }
-
-        function renderPowerChart(data) {
-            if (powerChart) powerChart.destroy();
-            const ctx = document.getElementById('powerChart').getContext('2d');
-            powerChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        data: data.data,
-                        backgroundColor: ['#0085ff', '#334155'], // Brand blue vs dark gray
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    cutout: '75%', // Makes the doughnut ring thin and modern
-                    plugins: { 
-                        legend: { position: 'bottom', labels: { color: '#cbd5e1' } } 
-                    }
-                }
-            });
-        }
-
-
-
+        // Feature 6: Network Graph (Dark Theme adjustments)
         function renderGraph(nodes, edges) {
           const container = document.getElementById("graph");
         
@@ -303,14 +403,14 @@
             const isTopic = n.kind === "topic";
             return {
               id: n.id,
-              label: isTopic ? `Topic: ${n.label}` : n.label,
+              label: isTopic ? n.label : shortDid(n.label),
               title: isTopic ? n.label : (n.raw_id || n.id),
               shape: isTopic ? "star" : "dot",
-              size: isTopic ? 34 : 14 + Math.min(16, (n.score || 0) * 30),
+              size: isTopic ? 30 : 10 + Math.min(15, (n.score || 0) * 30),
               color: isTopic
-                ? { background: "#f59e0b", border: "#fbbf24" }
-                : { background: "#0085ff", border: "#38bdf8" },
-              font: { color: "#e2e8f0", size: isTopic ? 16 : 12, face: "Inter, sans-serif" },
+                ? { background: "#9d4edd", border: "#7b2cbf", highlight: { border: '#fff' } } // brandPurple
+                : { background: "#007aff", border: "#0056b3", highlight: { border: '#fff' } }, // brandBlue
+              font: { color: "#e2e8f0", size: isTopic ? 14 : 11, face: "Inter, sans-serif" },
               mass: isTopic ? 3 : 1.2
             };
           }));
@@ -320,11 +420,10 @@
             return {
               from: e.source,
               to: e.target,
-              width: isPrimary ? 1 + Math.min(8, (e.weight || 0) * 8) : 1 + Math.min(3, (e.weight || 0)),
-              color: isPrimary ? { color: "#38bdf8", opacity: 0.75 } : { color: "#475569", opacity: 0.40 },
+              width: isPrimary ? 1 + Math.min(4, (e.weight || 0) * 8) : 1,
+              color: isPrimary ? { color: "#007aff", opacity: 0.5 } : { color: "#222b3b", opacity: 0.8 },
               dashes: !isPrimary,
-              smooth: { type: "dynamic" },
-              label: "",
+              smooth: { type: "continuous" }
             };
           }));
         
@@ -333,17 +432,10 @@
             autoResize: true,
             interaction: { hover: true, tooltipDelay: 120 },
             physics: {
-              stabilization: { iterations: 300 },
-              barnesHut: {
-                gravitationalConstant: -5500,
-                springLength: 190,
-                springConstant: 0.025,
-                damping: 0.22,
-                avoidOverlap: 0.9
-              }
+              stabilization: { iterations: 150 },
+              barnesHut: { gravitationalConstant: -4000, springLength: 150, springConstant: 0.04 }
             },
-            layout: { improvedLayout: true },
-            nodes: { borderWidth: 1.5 },
+            nodes: { borderWidth: 2, shadow: { enabled: true, color: 'rgba(0,0,0,0.5)', size: 10 } },
             edges: { selectionWidth: 2 }
           };
         
@@ -351,12 +443,9 @@
           graphNetwork = new vis.Network(container, data, options);
         }
 
+        // --- EVENT LISTENERS & LOADERS ---
 
-
-        loadBtn.addEventListener("click", () => {
-            loadAll().catch((err) => alert(err.message));
-        });
-
+        // Global Search
         document.getElementById("searchBtn").addEventListener("click", async () => {
             const query = document.getElementById("searchInput").value;
             if (!query) return;
@@ -366,19 +455,20 @@
                 const stats = await response.json();
 
                 document.getElementById("statsCard").classList.remove("hidden");
-                document.getElementById("statsTitle").innerText = `Results for "${query}"`;
-                document.getElementById("statCount").innerText = stats.count;
+                document.getElementById("statCount").innerText = stats.count.toLocaleString();
                 document.getElementById("statAvg").innerText = stats.avg_likes;
                 document.getElementById("statVar").innerText = stats.variance;
-                document.getElementById("statMax").innerText = stats.max_likes;
+                document.getElementById("statMax").innerText = stats.max_likes.toLocaleString();
             } catch (err) {
                 alert("Error fetching search stats: " + err.message);
             }
         });
 
+        // Dashboard Data loader
         async function loadAll() {
             const topicId = topicSelect.value;
             const topN = Number(topNInput.value || 10);
+
             const [rec, wc, graph, vel, pwr] = await Promise.all([
                 fetchJSON(`/recommendations?topic_id=${encodeURIComponent(topicId)}&top=${topN}`),
                 fetchJSON(`/wordcloud?topic_id=${encodeURIComponent(topicId)}&top_words=30`),
@@ -390,18 +480,21 @@
             renderRecommendations(rec.recommendations || []);
             renderWordCloud(wc.words || []);
             renderGraph(graph.nodes || [], graph.edges || []);
-            
-        
             renderVelocityChart(vel);
             renderPowerChart(pwr);
         }
 
+        loadBtn.addEventListener("click", () => {
+            loadAll().catch((err) => alert(err.message));
+        });
+
+        // Init
         (async function init() {
             try {
                 await loadTopics();
                 await loadAll();
             } catch (e) {
-                alert(e.message);
+                console.error("Initialization error:", e);
             }
         })();
     </script>
